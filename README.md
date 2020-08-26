@@ -19,7 +19,7 @@ $ go get -u -v github.com/flowerinthenight/dysync
 
 ## Usage
 ```bash
-$ dysync --src-key xxx --src-secret xxx [--src-rolearn xxx] --dst-key xxx --dst-secret xxx [--dst-rolearn xxx] [--dryrun] TABLE_NAME
+$ dysync --src-key xxx --src-secret xxx --dst-key xxx --dst-secret xxx [--dryrun] TABLE_NAME
 
 # For a more updated help information:
 $ dysync -h
