@@ -160,7 +160,7 @@ func run(cmd *cobra.Command, args []string) error {
 			log.Printf("%vsync: %+v", prfx, *item[tHash].S)
 		}
 
-		count += 1
+		count++
 	}
 
 	// Implied, for now.
