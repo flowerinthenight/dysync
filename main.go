@@ -25,7 +25,6 @@ var (
 	dstKey     string
 	dstSecret  string
 	dstRoleArn string
-	table      string
 	id         string
 	sk         string
 	copyOnly   bool
@@ -68,10 +67,11 @@ func run(cmd *cobra.Command, args []string) error {
 		log.Println("duration:", time.Since(begin))
 	}(time.Now())
 
-	if table == "" {
+	if len(args) == 0 {
 		return fmt.Errorf("table cannot be empty")
 	}
 
+	table := args[0]
 	if srcKey == dstKey && srcSecret == dstSecret {
 		return fmt.Errorf("cannot use the same credentials")
 	}
@@ -221,7 +221,6 @@ func main() {
 	rootCmd.Flags().StringVar(&dstKey, "dst-key", dstKey, "target acct access key")
 	rootCmd.Flags().StringVar(&dstSecret, "dst-secret", dstSecret, "target acct secret key")
 	rootCmd.Flags().StringVar(&dstRoleArn, "dst-rolearn", dstRoleArn, "optional target rolearn")
-	rootCmd.Flags().StringVar(&table, "table", table, "dynamodb table to sync")
 	rootCmd.Flags().StringVar(&id, "id", id, "optional filter: source 'id' to sync (only string is supported for now)")
 	rootCmd.Flags().StringVar(&sk, "sk", sk, "optional filter: source 'sort_key' to sync (only string is supported for now)")
 	rootCmd.Flags().BoolVar(&copyOnly, "copy-only", copyOnly, "if true, copy src to dst only, no full sync, default to true when id|sk is not empty")
