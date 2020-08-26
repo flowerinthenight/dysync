@@ -1,0 +1,33 @@
+builds:
+- id: "dysync"
+  binary: dysync
+  goos:
+  - linux
+  - darwin
+  goarch:
+  - amd64
+checksum:
+  name_template: 'checksums.txt'
+dist: /tmp/dysync/dist
+changelog:
+  sort: asc
+  filters:
+    exclude:
+    - '^docs:'
+    - '^test:'
+release:
+  github:
+    owner: flowerinthenight
+    name: dysync
+brews:
+- tap:
+    owner: flowerinthenight
+    name: homebrew-tap
+  name: dysync
+  homepage: "https://github.com/flowerinthenight/dysync"
+  description: "Sync DynamoDB table across two AWS accounts."
+  folder: Formula
+  install: |
+    bin.install "dysync"
+  test: |
+    assert_match /Sync DynamoDB table across two AWS accounts/, shell_output("#{bin}/dysync -h", 0)
