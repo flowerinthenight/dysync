@@ -8,6 +8,8 @@ When role ARN is provided (either by `--src-rolearn` or `--dst-rolearn`, this to
 
 By default, this tool will attempt to do a full sync, meaning, any records in dst that don't exist in src will be deleted. To override, set `--copy-only` to true, in which case, it will only do a copy. This option only works when both `--id` and `--sk` are empty (scan table), otherwise, if either `--id` or `--sk` is set (or both), it will do a copy only, not full sync.
 
+At the moment, this tool only supports string-based hash and range keys (when using `--id` and/or `--sk` flags).
+
 Note that this tool uses the Scan AWS API which is expensive and really slow for huge tables. You've been warned.
 
 ## Installation
