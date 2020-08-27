@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -27,6 +28,7 @@ var (
 	dstRoleArn string
 	id         string
 	sk         string
+	concurrent int
 	copyOnly   bool
 	dryrun     bool
 
@@ -131,10 +133,34 @@ func run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	var prfx string
 	srcm := make(map[string]struct{})
-	var count, del, failed int
+	var cpcnt, cpf, delcnt, delf int
+	num := len(items)
+	putjobs := make(chan map[string]*dynamodb.AttributeValue, num)
+	putres := make(chan error, num)
+
+	for i := 0; i < concurrent; i++ {
+		go func(id int, jobs <-chan map[string]*dynamodb.AttributeValue, res chan<- error) {
+			var pfx string
+			for j := range jobs {
+				if !dryrun {
+					res <- libdy.PutItem(dstdy, table, j)
+				} else {
+					res <- nil
+					pfx = "[dryrun] "
+				}
+
+				if tRange != "" {
+					log.Printf("%vsync: %v, %v", pfx, *j[tHash].S, *j[tRange].S)
+				} else {
+					log.Printf("%vsync: %+v", pfx, *j[tHash].S)
+				}
+			}
+		}(i, putjobs, putres)
+	}
+
 	for _, item := range items {
+		putjobs <- item
 		if tRange != "" {
 			k := fmt.Sprintf("%v*****%v", *item[tHash].S, *item[tRange].S)
 			srcm[k] = struct{}{}
@@ -142,25 +168,17 @@ func run(cmd *cobra.Command, args []string) error {
 			k := fmt.Sprintf("%v", *item[tHash].S)
 			srcm[k] = struct{}{}
 		}
+	}
 
-		if !dryrun {
-			err := libdy.PutItem(dstdy, table, item)
-			if err != nil {
-				log.Println("PutItem failed:", err)
-				failed += 1
-				continue
-			}
+	close(putjobs)
+	for i := 0; i < num; i++ {
+		err := <-putres
+		if err != nil {
+			log.Println("PutItem failed:", err)
+			cpf++
 		} else {
-			prfx = "[dryrun] "
+			cpcnt++
 		}
-
-		if tRange != "" {
-			log.Printf("%vsync: %v, %v", prfx, *item[tHash].S, *item[tRange].S)
-		} else {
-			log.Printf("%vsync: %+v", prfx, *item[tHash].S)
-		}
-
-		count++
 	}
 
 	// Implied, for now.
@@ -174,44 +192,74 @@ func run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("ScanItems failed: %w", err)
 		}
 
-		for _, item := range items {
-			var k string
-			if tRange != "" {
-				k = fmt.Sprintf("%v*****%v", *item[tHash].S, *item[tRange].S)
-			} else {
-				k = fmt.Sprintf("%v", *item[tHash].S)
-			}
+		type ret struct {
+			err error
+			del bool
+		}
 
-			if _, ok := srcm[k]; !ok {
-				kk := strings.Split(k, "*****")
-				if !dryrun {
-					if len(kk) > 1 {
-						pk := fmt.Sprintf("%v:%v", tHash, kk[0])
-						sk := fmt.Sprintf("%v:%v", tRange, kk[1])
-						err = libdy.DeleteItem(dstdy, table, pk, sk)
+		num := len(items)
+		deljobs := make(chan map[string]*dynamodb.AttributeValue, num)
+		delres := make(chan ret, num)
+
+		for i := 0; i < concurrent; i++ {
+			go func(id int, jobs <-chan map[string]*dynamodb.AttributeValue, res chan<- ret) {
+				for j := range jobs {
+					var k string
+					if tRange != "" {
+						k = fmt.Sprintf("%v*****%v", *j[tHash].S, *j[tRange].S)
 					} else {
-						pk := fmt.Sprintf("%v:%v", tHash, kk[0])
-						err = libdy.DeleteItem(dstdy, table, pk, "")
+						k = fmt.Sprintf("%v", *j[tHash].S)
 					}
 
-					if err != nil {
-						log.Printf("DeleteItem failed: %v", err)
-						continue
+					var err error
+					var del bool
+					if _, ok := srcm[k]; !ok {
+						var pfx string
+						kk := strings.Split(k, "*****")
+						if !dryrun {
+							if len(kk) > 1 {
+								pk := fmt.Sprintf("%v:%v", tHash, kk[0])
+								sk := fmt.Sprintf("%v:%v", tRange, kk[1])
+								err, del = libdy.DeleteItem(dstdy, table, pk, sk), true
+							} else {
+								pk := fmt.Sprintf("%v:%v", tHash, kk[0])
+								err, del = libdy.DeleteItem(dstdy, table, pk, ""), true
+							}
+						} else {
+							pfx = "[dryrun] "
+						}
+
+						if len(kk) > 1 {
+							log.Printf("%vdelete: %v, %v", pfx, kk[0], kk[1])
+						} else {
+							log.Printf("%vdelete: %v", pfx, kk[0])
+						}
 					}
-				}
 
-				if len(kk) > 1 {
-					log.Printf("%vdelete: %v, %v", prfx, kk[0], kk[1])
-				} else {
-					log.Printf("%vdelete: %v", prfx, kk[0])
+					res <- ret{err, del}
 				}
+			}(i, deljobs, delres)
+		}
 
-				del++
+		for _, item := range items {
+			deljobs <- item
+		}
+
+		close(deljobs)
+		for i := 0; i < num; i++ {
+			r := <-delres
+			if r.err != nil {
+				log.Println("DeleteItem failed:", err)
+				delf++
+			} else {
+				if r.del {
+					delcnt++
+				}
 			}
 		}
 	}
 
-	log.Printf("syncd=%v, failed=%v, deleted=%v", count, failed, del)
+	log.Printf("syncd=%v, failed=%v, deleted=%v, failed=%v", cpcnt, cpf, delcnt, delf)
 	return nil
 
 }
@@ -229,6 +277,7 @@ func main() {
 	rootCmd.Flags().StringVar(&id, "id", id, "optional filter: source 'id' to sync (only string is supported for now)")
 	rootCmd.Flags().StringVar(&sk, "sk", sk, "optional filter: source 'sort_key' to sync (only string is supported for now)")
 	rootCmd.Flags().BoolVar(&copyOnly, "copy-only", copyOnly, "if true, copy src to dst only, no full sync, default to true when id|sk is not empty")
+	rootCmd.Flags().IntVar(&concurrent, "concurrent", runtime.NumCPU()*2, "number of worker goroutines to handle the copy and delete")
 	rootCmd.Flags().BoolVar(&dryrun, "dryrun", dryrun, "dryrun, no write")
 	rootCmd.Execute()
 }
