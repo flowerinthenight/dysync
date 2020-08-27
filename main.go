@@ -133,7 +133,7 @@ func run(cmd *cobra.Command, args []string) error {
 
 	var prfx string
 	srcm := make(map[string]struct{})
-	var count, failed int
+	var count, del, failed int
 	for _, item := range items {
 		if tRange != "" {
 			k := fmt.Sprintf("%v*****%v", *item[tHash].S, *item[tRange].S)
@@ -202,11 +202,13 @@ func run(cmd *cobra.Command, args []string) error {
 				} else {
 					log.Printf("%vdelete: %v", prfx, kk[0])
 				}
+
+				del++
 			}
 		}
 	}
 
-	log.Printf("syncd=%v, failed=%v", count, failed)
+	log.Printf("syncd=%v, failed=%v, deleted=%v", count, failed, del)
 	return nil
 
 }
