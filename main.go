@@ -186,9 +186,12 @@ func run(cmd *cobra.Command, args []string) error {
 				kk := strings.Split(k, "*****")
 				if !dryrun {
 					if len(kk) > 1 {
-						err = libdy.DeleteItem(dstdy, table, kk[0], kk[1])
+						pk := fmt.Sprintf("%v:%v", tHash, kk[0])
+						sk := fmt.Sprintf("%v:%v", tRange, kk[1])
+						err = libdy.DeleteItem(dstdy, table, pk, sk)
 					} else {
-						err = libdy.DeleteItem(dstdy, table, tHash, "")
+						pk := fmt.Sprintf("%v:%v", tHash, kk[0])
+						err = libdy.DeleteItem(dstdy, table, pk, "")
 					}
 
 					if err != nil {
