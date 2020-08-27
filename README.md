@@ -36,4 +36,5 @@ $ dysync -h
 ## Need help
 PR's are welcome!
 
+- [x] Distribture copy/delete workload to a configurable work queue for more perf.
 - [ ] Support for non-string primary keys and/or sort keys.
