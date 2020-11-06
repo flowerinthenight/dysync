@@ -1,4 +1,4 @@
-![Main](https://github.com/flowerinthenight/dysync/workflows/Main/badge.svg)
+![main](https://github.com/flowerinthenight/dysync/workflows/main/badge.svg)
 
 ## Overview
 
